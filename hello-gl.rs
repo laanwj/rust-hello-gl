@@ -159,8 +159,7 @@ fn render(rsrc: &mut Resources) {
     gl2::enable_vertex_attrib_array(rsrc.attributes.position as GLuint);
 
     gl2::bind_buffer(gl2::ELEMENT_ARRAY_BUFFER, rsrc.element_buffer);
-    // XXX hacked in rust-opengles because draw_elements is braindead
-    gl2::draw_elements_buffered(gl2::TRIANGLE_STRIP, 4, gl2::UNSIGNED_SHORT);
+    gl2::draw_elements(gl2::TRIANGLE_STRIP, 4, gl2::UNSIGNED_SHORT, None);
 
     gl2::disable_vertex_attrib_array(rsrc.attributes.position as GLuint);
 
