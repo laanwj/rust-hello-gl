@@ -31,13 +31,35 @@ fn make_buffer<T>(target: GLenum, data: &[T]) -> GLuint {
     buffer
 }
 
+static rgb_pixfmt: sdl::video::PixelFormat = sdl::video::PixelFormat {
+    palette: None,
+    bpp: 24,
+    r_loss: 0,
+    g_loss: 0,
+    b_loss: 0,
+    a_loss: 0,
+    r_shift: 16,
+    g_shift: 8,
+    b_shift: 0,
+    a_shift: 0,
+    r_mask: 0xff,
+    g_mask: 0xff00,
+    b_mask: 0xff0000,
+    a_mask: 0,
+    color_key: 0,
+    alpha: 0,
+};
+
 fn make_texture(filename: &str) -> GLuint {
     let path = Path(filename);
     let bmp = match sdl::video::Surface::from_bmp(&path) {
         Err(err) => fail!(fmt!("couldn't load %s: %s", filename, err)),
         Ok(s) => s,
     };
-    let rgb = bmp; // XXX convert_surface
+    let rgb = match bmp.convert(&rgb_pixfmt, [sdl::video::SWSurface]) {
+        Err(err) => fail!(fmt!("couldn't convert %s to RGB: %s", filename, err)),
+        Ok(s) => s,
+    };
 
     let textures = gl2::gen_textures(1);
     let texture = *(textures.head());
