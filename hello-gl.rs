@@ -158,7 +158,7 @@ fn update_fade_factor(rsrc: &mut Resources) {
     rsrc.fade_factor = (core::float::sin(ms * 0.001) * 0.5 + 0.5) as GLfloat;
 }
 
-fn render(rsrc: &mut Resources) {
+fn render(rsrc: &Resources) {
     gl2::use_program(rsrc.program);
 
     gl2::uniform_1f(rsrc.uniforms.fade_factor, rsrc.fade_factor);
@@ -231,7 +231,7 @@ fn main() {
             }
 
             update_fade_factor(&mut rsrc);
-            render(&mut rsrc);
+            render(&rsrc);
         }
 
         sdl::quit();
