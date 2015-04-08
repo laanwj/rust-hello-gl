@@ -1,0 +1,17 @@
+[package]
+name        = "hello-gl"
+description = "'Hello World' in Rust+SDL+GL"
+repository  = "https://github.com/robn/rust-hello-gl"
+version     = "0.0.1"
+license     = "CC0-1.0"
+authors     = [ "Rob N <robn@robn.io>" ]
+keywords    = ["SDL", "OpenGL", "graphics"]
+
+[[bin]]
+name = "hello-gl"
+
+[dependencies.gleam]
+git = "https://github.com/servo/gleam"
+
+[dependencies.sdl2]
+git = "https://github.com/AngryLawyer/rust-sdl2"

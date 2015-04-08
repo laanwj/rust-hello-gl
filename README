@@ -4,9 +4,3 @@ The SDL 1.2 / GLES 2 version that this is based on is at
 https://github.com/robn/hello-gl.
 
 Joe's original is at https://github.com/jckarter/hello-gl
-
-You'll need to grab https://github.com/brson/rust-sdl and
-https://github.com/mozilla-servo/rust-opengles to build this. And you may need
-some patches from their queues as well, if they haven't been merged yet. But if
-you're honestly considering playing with this then maybe try talking to me. I'm
-robn on Mozilla IRC and Freenode, and lurking in #rust and #servo.
