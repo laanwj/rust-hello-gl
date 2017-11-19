@@ -1,6 +1,7 @@
 extern crate sdl2;
 extern crate gleam;
 
+use sdl2::video::{GLProfile};
 use sdl2::surface::Surface;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::keyboard::Keycode;
@@ -203,6 +204,8 @@ fn main() {
     let video_subsystem = sdl_ctx.video().unwrap();
     let gl_attr = video_subsystem.gl_attr();
 
+    gl_attr.set_context_profile(GLProfile::GLES);
+    gl_attr.set_context_version(2, 0);
     gl_attr.set_red_size(8);
     gl_attr.set_green_size(8);
     gl_attr.set_blue_size(8);
@@ -220,7 +223,7 @@ fn main() {
         Err(err) => panic!("failed to create GL context: {}", err),
     };
 
-    let gl = unsafe { gl::GlFns::load_with(|s| {
+    let gl = unsafe { gl::GlesFns::load_with(|s| {
         mem::transmute(video_subsystem.gl_get_proc_address(s))
     })};
 

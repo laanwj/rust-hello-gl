@@ -1,4 +1,4 @@
-#version 110
+precision highp float;
 
 uniform float fade_factor;
 uniform sampler2D textures[2];
