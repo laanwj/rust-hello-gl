@@ -9,6 +9,7 @@ keywords    = ["SDL", "OpenGL", "graphics"]
 
 [[bin]]
 name = "hello-gl"
+path = "src/hello-gl.rs"
 
 [dependencies.gleam]
 git = "https://github.com/servo/gleam"
