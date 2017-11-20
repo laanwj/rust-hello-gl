@@ -10,7 +10,7 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
 use std::mem;
-use cgmath::{Vector3,Vector4,Matrix3,Matrix4,frustum,vec3,Deg};
+use cgmath::{Matrix3,Matrix4,frustum,vec3,Deg};
 
 struct Uniforms {
     modelview_matrix: GLint,
@@ -88,6 +88,7 @@ fn make_program(gl: &GlPtr, vertex_shader: GLuint, fragment_shader: GLuint) -> G
     program
 }
 
+/* Cube vertex data */
 static VERTEX_BUFFER_DATA: [GLfloat; 3*3*4*6] = [
             // front
             -1.0, -1.0, 1.0, // point blue
