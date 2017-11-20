@@ -1,9 +1,8 @@
 extern crate sdl2;
 extern crate gleam;
+extern crate cgmath;
 
 use sdl2::video::{GLProfile};
-use sdl2::surface::Surface;
-use sdl2::pixels::PixelFormatEnum;
 use sdl2::keyboard::Keycode;
 use gleam::gl;
 use gleam::gl::types::{GLuint, GLint, GLfloat, GLenum, GLsizei, GLushort};
@@ -11,24 +10,27 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
 use std::mem;
+use cgmath::{Vector3,Vector4,Matrix3,Matrix4,frustum,vec3,Deg};
 
 struct Uniforms {
-    fade_factor: GLint,
-    textures: [GLint; 2],
+    modelview_matrix: GLint,
+    modelviewprojection_matrix: GLint,
+    normal_matrix: GLint,
 }
 
 struct Attributes {
     position: GLint,
+    color: GLint,
+    normal: GLint,
 }
 
 struct Resources {
     vertex_buffer: GLuint,
     element_buffer: GLuint,
-    textures: [GLuint; 2],
     program: GLuint,
     uniforms: Uniforms,
     attributes: Attributes,
-    fade_factor: GLfloat,
+    i: GLint,
 }
 
 type GlPtr = std::rc::Rc<gl::Gl>;
@@ -42,44 +44,6 @@ fn make_buffer<T>(gl: &GlPtr, target: GLenum, data: &[T]) -> GLuint {
     gl.bind_buffer(target, buffer);
     gl.buffer_data_untyped(target, mem::size_of_val(data) as isize, data.as_ptr() as *const _, gl::STATIC_DRAW);
     buffer
-}
-
-fn make_texture(gl: &GlPtr, filename: &str) -> GLuint {
-    let path = Path::new(filename);
-    let bmp = match Surface::load_bmp(&path) {
-        Ok(s) => s,
-        Err(err) => panic!("couldn't load {}: {}", filename, err),
-    };
-    let fmt = Surface::new(1,1,PixelFormatEnum::RGB24).unwrap().pixel_format();
-    let rgb = match bmp.convert(&fmt) {
-        Ok(s) => s,
-        Err(err) => panic!("couldn't convert {} to RGB: {}", filename, err),
-    };
-
-    let textures = gl.gen_textures(1);
-    let texture = match textures.len() {
-        0 => panic!("couldn't create texture"),
-        _ => textures[0],
-    };
-    gl.bind_texture(gl::TEXTURE_2D, texture);
-    gl.tex_parameter_i(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as GLint);
-    gl.tex_parameter_i(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as GLint);
-    gl.tex_parameter_i(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S,     gl::CLAMP_TO_EDGE as GLint);
-    gl.tex_parameter_i(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T,     gl::CLAMP_TO_EDGE as GLint);
-
-    let width = rgb.width();
-    let height = rgb.height();
-    rgb.with_lock(|pixels| {
-        gl.tex_image_2d(
-            gl::TEXTURE_2D, 0,
-            gl::RGB as GLint,
-            width as GLsizei, height as GLsizei, 0,
-            gl::RGB, gl::UNSIGNED_BYTE,
-            Some(pixels.as_ref())
-        );
-    });
-
-    texture
 }
 
 fn make_shader(gl: &GlPtr, typ: GLenum, filename: &str) -> GLuint {
@@ -124,75 +88,222 @@ fn make_program(gl: &GlPtr, vertex_shader: GLuint, fragment_shader: GLuint) -> G
     program
 }
 
-static VERTEX_BUFFER_DATA: [GLfloat; 8] = [
-    -1.0, -1.0,
-     1.0, -1.0,
-    -1.0,  1.0,
-     1.0,  1.0
+static VERTEX_BUFFER_DATA: [GLfloat; 3*3*4*6] = [
+            // front
+            -1.0, -1.0, 1.0, // point blue
+            0.0,  0.0,  1.0, // blue
+            0.0, 0.0, 1.0, // forward
+
+            1.0, -1.0, 1.0, // point magenta
+            1.0,  0.0,  1.0, // magenta
+            0.0, 0.0, 1.0, // forward
+
+            -1.0, 1.0, 1.0, // point cyan
+            0.0,  1.0,  1.0, // cyan
+            0.0, 0.0, 1.0, // forward
+
+            1.0, 1.0, 1.0, // point white
+            1.0,  1.0,  1.0, // white
+            0.0, 0.0, 1.0, // forward
+
+            // back
+            1.0, -1.0, -1.0, // point red
+            1.0,  0.0,  0.0, // red
+            0.0, 0.0, -1.0, // backbard
+
+            -1.0, -1.0, -1.0, // point black
+            0.0,  0.0,  0.0, // black
+            0.0, 0.0, -1.0, // backbard
+
+            1.0, 1.0, -1.0, // point yellow
+            1.0,  1.0,  0.0, // yellow
+            0.0, 0.0, -1.0, // backbard
+
+            -1.0, 1.0, -1.0, // point green
+            0.0,  1.0,  0.0, // green
+            0.0, 0.0, -1.0, // backbard
+
+            // right
+            1.0, -1.0, 1.0, // point magenta
+            1.0,  0.0,  1.0, // magenta
+            1.0, 0.0, 0.0, // right
+
+            1.0, -1.0, -1.0, // point red
+            1.0,  0.0,  0.0, // red
+            1.0, 0.0, 0.0, // right
+
+            1.0, 1.0, 1.0, // point white
+            1.0,  1.0,  1.0, // white
+            1.0, 0.0, 0.0, // right
+
+            1.0, 1.0, -1.0, // point yellow
+            1.0,  1.0,  0.0, // yellow
+            1.0, 0.0, 0.0, // right
+
+            // left
+            -1.0, -1.0, -1.0, // point black
+            0.0,  0.0,  0.0, // black
+            -1.0, 0.0, 0.0, // left
+
+            -1.0, -1.0, 1.0, // point blue
+            0.0,  0.0,  1.0, // blue
+            -1.0, 0.0, 0.0, // left
+
+            -1.0, 1.0, -1.0, // point green
+            0.0,  1.0,  0.0, // green
+            -1.0, 0.0, 0.0, // left
+
+            -1.0, 1.0, 1.0, // point cyan
+            0.0,  1.0,  1.0, // cyan
+            -1.0, 0.0, 0.0, // left
+
+            // top
+            -1.0, 1.0, 1.0, // point cyan
+            0.0,  1.0,  1.0, // cyan
+            0.0, 1.0, 0.0, // up
+
+            1.0, 1.0, 1.0, // point white
+            1.0,  1.0,  1.0, // white
+            0.0, 1.0, 0.0, // up
+
+            -1.0, 1.0, -1.0, // point green
+            0.0,  1.0,  0.0, // green
+            0.0, 1.0, 0.0, // up
+
+            1.0, 1.0, -1.0, // point yellow
+            1.0,  1.0,  0.0, // yellow
+            0.0, 1.0, 0.0, // up
+
+            // bottom
+            -1.0, -1.0, -1.0, // point black
+            0.0,  0.0,  0.0, // black
+            0.0, -1.0, 0.0, // down
+
+            1.0, -1.0, -1.0, // point red
+            1.0,  0.0,  0.0, // red
+            0.0, -1.0, 0.0, // down
+
+            -1.0, -1.0, 1.0, // point blue
+            0.0,  0.0,  1.0, // blue
+            0.0, -1.0, 0.0, // down
+
+            1.0, -1.0, 1.0,  // point magenta
+            1.0,  0.0,  1.0,  // magenta
+            0.0, -1.0, 0.0,  // down
 ];
 
-static ELEMENT_BUFFER_DATA: [GLushort; 4] = [ 0, 1, 2, 3 ];
+static ELEMENT_BUFFER_DATA: [GLushort; 4*6] = [
+    0, 1, 2, 3,
+    4, 5, 6, 7,
+    8, 9, 10, 11,
+    12, 13, 14, 15,
+    16, 17, 18, 19,
+    20, 21, 22, 23,
+];
 
 fn make_resources(gl: &GlPtr) -> Option<Resources> {
     let program = make_program(
         gl,
-        make_shader(gl, gl::VERTEX_SHADER, "hello-gl.v.glsl"),
-        make_shader(gl, gl::FRAGMENT_SHADER, "hello-gl.f.glsl")
+        make_shader(gl, gl::VERTEX_SHADER, "cube.v.glsl"),
+        make_shader(gl, gl::FRAGMENT_SHADER, "cube.f.glsl")
     );
 
-    Some(Resources {
+    let rsrc = Resources {
         vertex_buffer: make_buffer(gl, gl::ARRAY_BUFFER, &VERTEX_BUFFER_DATA),
         element_buffer: make_buffer(gl, gl::ELEMENT_ARRAY_BUFFER, &ELEMENT_BUFFER_DATA),
-        textures: [
-            make_texture(gl, "hello1.bmp"),
-            make_texture(gl, "hello2.bmp"),
-        ],
         program: program,
         uniforms: Uniforms {
-            fade_factor: gl.get_uniform_location(program, "fade_factor"),
-            textures: [
-                gl.get_uniform_location(program, "textures[0]"),
-                gl.get_uniform_location(program, "textures[1]"),
-            ],
+            modelview_matrix: gl.get_uniform_location(program, "modelviewMatrix"),
+            modelviewprojection_matrix: gl.get_uniform_location(program, "modelviewprojectionMatrix"),
+            normal_matrix: gl.get_uniform_location(program, "normalMatrix"),
         },
         attributes: Attributes {
-            position: gl.get_attrib_location(program, "position"),
+            position: gl.get_attrib_location(program, "in_position"),
+            color: gl.get_attrib_location(program, "in_color"),
+            normal: gl.get_attrib_location(program, "in_normal"),
         },
-        fade_factor: 0.0,
-    })
-}
+        i:0,
+    };
 
-fn update_fade_factor(sdl_ctx: &sdl2::Sdl, rsrc: &mut Resources) {
-    let ms = sdl_ctx.timer().unwrap().ticks() as f32;
-    rsrc.fade_factor = ((ms * 0.001).sin() * 0.5 + 0.5) as GLfloat;
-}
-
-fn render(gl: &GlPtr, rsrc: &Resources) {
-    gl.use_program(rsrc.program);
-
-    gl.uniform_1f(rsrc.uniforms.fade_factor, rsrc.fade_factor);
-
-    gl.active_texture(gl::TEXTURE0);
-    gl.bind_texture(gl::TEXTURE_2D, rsrc.textures[0]);
-    gl.uniform_1i(rsrc.uniforms.textures[0], 0);
-
-    gl.active_texture(gl::TEXTURE1);
-    gl.bind_texture(gl::TEXTURE_2D, rsrc.textures[1]);
-    gl.uniform_1i(rsrc.uniforms.textures[1], 1);
-
+    // Set up buffers
     gl.bind_buffer(gl::ARRAY_BUFFER, rsrc.vertex_buffer);
     gl.vertex_attrib_pointer_f32(
         rsrc.attributes.position as GLuint,
-        2,
+        3,
         false,
-        (mem::size_of::<GLuint>()*2) as GLsizei,
-        0);
-    gl.enable_vertex_attrib_array(rsrc.attributes.position as GLuint);
+        (mem::size_of::<GLfloat>()*9) as GLsizei,
+        (mem::size_of::<GLfloat>()*0) as u32);
+    gl.vertex_attrib_pointer_f32(
+        rsrc.attributes.color as GLuint,
+        3,
+        false,
+        (mem::size_of::<GLfloat>()*9) as GLsizei,
+        (mem::size_of::<GLfloat>()*3) as u32);
+    gl.vertex_attrib_pointer_f32(
+        rsrc.attributes.normal as GLuint,
+        3,
+        false,
+        (mem::size_of::<GLfloat>()*9) as GLsizei,
+        (mem::size_of::<GLfloat>()*6) as u32);
 
+    Some(rsrc)
+}
+
+fn update(_sdl_ctx: &sdl2::Sdl, rsrc: &mut Resources) {
+    // let ms = sdl_ctx.timer().unwrap().ticks() as f32;
+    // rsrc.fade_factor = ((ms * 0.001).sin() * 0.5 + 0.5) as GLfloat;
+    rsrc.i = rsrc.i + 1;
+}
+
+fn render(gl: &GlPtr, rsrc: &Resources, width: GLint, height: GLint) {
+    gl.enable(gl::CULL_FACE);
+    gl.viewport(0, 0, width, height);
+
+	gl.clear_color(0.2, 0.2, 0.2, 1.0);
+	gl.clear(gl::COLOR_BUFFER_BIT);
+
+    gl.use_program(rsrc.program);
+
+    let aspect = (height as GLfloat) / (width as GLfloat);
+    let i = rsrc.i as GLfloat;
+
+    let modelview: Matrix4<GLfloat> =
+        Matrix4::from_translation(vec3(0.0, 0.0, -8.0)) *
+        Matrix4::from_axis_angle(vec3(1.0, 0.0, 0.0), Deg(-(45.0 + (0.25 * i)))) *
+        Matrix4::from_axis_angle(vec3(0.0, 1.0, 0.0), Deg(-(45.0 - (0.5 * i)))) *
+        Matrix4::from_axis_angle(vec3(0.0, 0.0, 1.0), Deg(-(10.0 + (0.15 * i))));
+    let projection: Matrix4<GLfloat> = frustum(-2.8, 2.8, -2.8 * aspect, 2.8 * aspect, 6.0, 10.0);
+    let modelviewprojection: Matrix4<GLfloat> = projection * modelview;
+    let normal: Matrix3<GLfloat> = Matrix3::new(
+                        modelview[0][0], modelview[0][1], modelview[0][2],
+                        modelview[1][0], modelview[1][1], modelview[1][2],
+                        modelview[2][0], modelview[2][1], modelview[2][2]);
+
+    gl.uniform_matrix_4fv(rsrc.uniforms.modelview_matrix, false,
+                          modelview.as_ref() as &[GLfloat; 16]);
+    gl.uniform_matrix_4fv(rsrc.uniforms.modelviewprojection_matrix, false,
+                          modelviewprojection.as_ref() as &[GLfloat; 16]);
+    gl.uniform_matrix_3fv(rsrc.uniforms.normal_matrix, false,
+                          normal.as_ref() as &[GLfloat; 9]);
+
+    gl.enable_vertex_attrib_array(rsrc.attributes.position as GLuint);
+    gl.enable_vertex_attrib_array(rsrc.attributes.color as GLuint);
+    gl.enable_vertex_attrib_array(rsrc.attributes.normal as GLuint);
+
+/*
     gl.bind_buffer(gl::ELEMENT_ARRAY_BUFFER, rsrc.element_buffer);
     gl.draw_elements(gl::TRIANGLE_STRIP, 4, gl::UNSIGNED_SHORT, 0);
+*/
+    gl.draw_arrays(gl::TRIANGLE_STRIP, 0, 4);
+    gl.draw_arrays(gl::TRIANGLE_STRIP, 4, 4);
+    gl.draw_arrays(gl::TRIANGLE_STRIP, 8, 4);
+    gl.draw_arrays(gl::TRIANGLE_STRIP, 12, 4);
+    gl.draw_arrays(gl::TRIANGLE_STRIP, 16, 4);
+    gl.draw_arrays(gl::TRIANGLE_STRIP, 20, 4);
 
     gl.disable_vertex_attrib_array(rsrc.attributes.position as GLuint);
+    gl.disable_vertex_attrib_array(rsrc.attributes.color as GLuint);
+    gl.disable_vertex_attrib_array(rsrc.attributes.normal as GLuint);
 }
 
 #[allow(unused_variables)]
@@ -209,7 +320,7 @@ fn main() {
     gl_attr.set_red_size(8);
     gl_attr.set_green_size(8);
     gl_attr.set_blue_size(8);
-    gl_attr.set_depth_size(24);
+    gl_attr.set_depth_size(0);
     gl_attr.set_double_buffer(true);
 
     let window = match video_subsystem.window("Hello GL!", 400, 300)
@@ -244,8 +355,9 @@ fn main() {
             };
         }
 
-        update_fade_factor(&sdl_ctx, &mut rsrc);
-        render(&gl, &rsrc);
+        update(&sdl_ctx, &mut rsrc);
+        let size = window.size();
+        render(&gl, &rsrc, size.0 as i32, size.1 as i32);
 
         window.gl_swap_window();
     }
