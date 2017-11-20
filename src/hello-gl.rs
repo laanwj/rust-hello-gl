@@ -192,12 +192,13 @@ static VERTEX_BUFFER_DATA: [GLfloat; 3*3*4*6] = [
             0.0, -1.0, 0.0,  // down
 ];
 
-static ELEMENT_BUFFER_DATA: [GLushort; 4*6] = [
-    0, 1, 2, 3,
-    4, 5, 6, 7,
-    8, 9, 10, 11,
-    12, 13, 14, 15,
-    16, 17, 18, 19,
+/* Index buffer with degenerate triangles */
+static ELEMENT_BUFFER_DATA: [GLushort; 4*6 + 2*5] = [
+    0, 1, 2, 3, 3, 4,
+    4, 5, 6, 7, 7, 8,
+    8, 9, 10, 11, 11, 12,
+    12, 13, 14, 15, 15, 16,
+    16, 17, 18, 19, 19, 20,
     20, 21, 22, 23,
 ];
 
@@ -290,16 +291,8 @@ fn render(gl: &GlPtr, rsrc: &Resources, width: GLint, height: GLint) {
     gl.enable_vertex_attrib_array(rsrc.attributes.color as GLuint);
     gl.enable_vertex_attrib_array(rsrc.attributes.normal as GLuint);
 
-/*
     gl.bind_buffer(gl::ELEMENT_ARRAY_BUFFER, rsrc.element_buffer);
-    gl.draw_elements(gl::TRIANGLE_STRIP, 4, gl::UNSIGNED_SHORT, 0);
-*/
-    gl.draw_arrays(gl::TRIANGLE_STRIP, 0, 4);
-    gl.draw_arrays(gl::TRIANGLE_STRIP, 4, 4);
-    gl.draw_arrays(gl::TRIANGLE_STRIP, 8, 4);
-    gl.draw_arrays(gl::TRIANGLE_STRIP, 12, 4);
-    gl.draw_arrays(gl::TRIANGLE_STRIP, 16, 4);
-    gl.draw_arrays(gl::TRIANGLE_STRIP, 20, 4);
+    gl.draw_elements(gl::TRIANGLE_STRIP, ELEMENT_BUFFER_DATA.len() as i32, gl::UNSIGNED_SHORT, 0);
 
     gl.disable_vertex_attrib_array(rsrc.attributes.position as GLuint);
     gl.disable_vertex_attrib_array(rsrc.attributes.color as GLuint);
